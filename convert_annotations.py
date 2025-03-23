@@ -28,10 +28,10 @@ def convert_bbox(size, box):
 """prelevo il path del dataset di immagini dalla cartella train"""
 
 conversion_directory = "val"
-
-train_dir = 'C:/Users/Marco/Desktop/Nuova cartella/dataset/'+ conversion_directory
-image_folder  = os.path.join(train_dir, 'thermal_8_bit')
-json_path = os.path.join(train_dir, 'thermal_annotations.json')
+json_directory = 'C:/Users/Marco/Desktop/Nuova cartella/dataset/val/'
+train_dir = 'C:/Users/Marco/Desktop/dataset/'+ conversion_directory
+image_folder  = os.path.join(train_dir, 'images')
+json_path = os.path.join(json_directory, 'thermal_annotations.json')
 output_folder = os.path.join(train_dir, 'labels')
 os.makedirs(output_folder, exist_ok=True)
 
@@ -85,8 +85,7 @@ for img_id, img_info in images.items():
         # Se ci sono annotazioni per questa immagine, processale
         if img_id in annotations_by_image:
             for ann in annotations_by_image[img_id]:
-                # Assumi che le category_id partano da 1 e convertile in 0-indexed 
-                class_id = ann['category_id'] - 1  
+                class_id = ann['category_id']   
                 bbox = ann['bbox']  # [x, y, width, height]
                 x_center, y_center, w_norm, h_norm = convert_bbox((width, height), bbox)
                 out_file.write(f"{class_id} {x_center:.6f} {y_center:.6f} {w_norm:.6f} {h_norm:.6f}\n")

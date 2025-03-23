@@ -1,5 +1,5 @@
 # dataset.yaml
-path: "C:/Users/Marco/Desktop/dataset"
+path: "/home/user/dataset"
 train: train/images
 val: val/images
 nc: 81
