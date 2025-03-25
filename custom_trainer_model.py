@@ -31,7 +31,7 @@ results = model.train(
 print(test_name + " - Training complete ")
 print("All  result saved in " + folder )
 
-best_weights = os.path.join(results.path, "weights", "best.pt")
+best_weights = os.path.join(folder, "weights", "best.pt")
 print(f"Best weights saved at: {best_weights}")
 
 validation_name = test_name + "_validation"
