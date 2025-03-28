@@ -7,34 +7,47 @@ from torch.utils.data import Dataset
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
-# Transformazioni con Albumentations
-custom_transforms = A.Compose(
-    [
-        A.RandomRotate90(p=0.5),
-        A.HorizontalFlip(p=0.5),
-        A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.1, rotate_limit=15, p=0.5),
-        A.RandomResizedCrop(size=(640, 640), scale=(0.8, 1.0), ratio=(0.75, 1.33), p=0.5),
-        A.Perspective(p=0.3),
-        A.Blur(p=0.2),
-        A.GaussNoise(p=0.2),
-        A.Resize(640, 640),  # Questo serve per compatibilità YOLO
-        ToTensorV2(),
-    ],
-    bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0),
-)
+# === Definizione di più set di trasformazioni ===
+transform_set1 = A.Compose([
+    A.RandomBrightnessContrast(p=0.3),
+    A.OneOf([
+        A.MotionBlur(blur_limit=3),
+        A.MedianBlur(blur_limit=3),
+        A.GaussianBlur(blur_limit=3),
+    ], p=0.3),
+    A.Resize(640, 640),
+    ToTensorV2()
+], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
 
+transform_set2 = A.Compose([
+    A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.1, rotate_limit=10, p=0.7),
+    A.Perspective(p=0.7),
+    A.Resize(640, 640),
+    ToTensorV2(),
+], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
+
+transform_set3 = A.Compose([
+    A.GaussNoise(var_limit=(5, 15), p=0.3),
+    A.HorizontalFlip(p=0.3),
+    A.Resize(640, 640),
+    ToTensorV2(),
+], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
+
+transforms_list = [transform_set1, transform_set2, transform_set3]
+
+
+# === Custom Dataloader aggiornato ===
 class Custom_Dataloader(Dataset):
-    def __init__(self, img_dir, label_dir, transform=None):
+    def __init__(self, img_dir, label_dir, transforms_list):
         self.img_paths = []
         for ext in ('*.jpg', '*.jpeg', '*.png'):
             self.img_paths.extend(sorted(glob.glob(os.path.join(img_dir, ext))))
         self.label_paths = sorted(glob.glob(os.path.join(label_dir, "*.txt")))
-        self.transform = transform
+        self.transforms_list = transforms_list
         self.skipped_augmentation = 0
         self.empty_targets = 0
         self.total_samples = 0
 
-        
     def __len__(self):
         return len(self.img_paths)
 
@@ -53,42 +66,39 @@ class Custom_Dataloader(Dataset):
                     bboxes.append([x, y, w, h])
                     class_labels.append(int(cls))
 
-        if self.transform:
+        results = []
+        for transform in self.transforms_list:
             try:
-                transformed = self.transform(image=img, bboxes=bboxes, class_labels=class_labels)
+                transformed = transform(image=img, bboxes=bboxes, class_labels=class_labels)
                 valid_bboxes, valid_labels = [], []
                 for box, label in zip(transformed["bboxes"], transformed["class_labels"]):
                     if len(box) == 4 and all(0.0 <= v <= 1.0 for v in box):
                         valid_bboxes.append(box)
                         valid_labels.append(label)
-            except Exception as e:
+            except Exception:
                 self.skipped_augmentation += 1
-                return torch.zeros((3, 640, 640)), torch.zeros((0, 5)), img_path
-            
+                img_tensor = torch.zeros((3, 640, 640))
+                targets = torch.zeros((0, 5))
+                results.append((img_tensor, targets, img_path))
+                continue
+
             img_tensor = transformed["image"]
             boxes = torch.tensor(valid_bboxes, dtype=torch.float32)
             labels = torch.tensor(valid_labels, dtype=torch.long)
-            
-            
-        else:
-            img_tensor = ToTensorV2()(image=img)["image"]
-            boxes = torch.tensor(bboxes, dtype=torch.float32)
-            labels = torch.tensor(class_labels, dtype=torch.long)
 
-        # Filtra bbox troppo piccoli
-        if boxes.numel():
-            valid = (boxes[:, 2] > 0.01) & (boxes[:, 3] > 0.01)
-            boxes = boxes[valid]
-            labels = labels[valid]
+            if boxes.numel():
+                valid = (boxes[:, 2] > 0.01) & (boxes[:, 3] > 0.01)
+                boxes = boxes[valid]
+                labels = labels[valid]
 
-        if boxes.numel() == 0:
-            self.empty_targets += 1
+            if boxes.numel() == 0:
+                self.empty_targets += 1
 
-        # Costruzione targets
+            targets = torch.cat([labels.unsqueeze(1), boxes], dim=1) if boxes.numel() else torch.zeros((0, 5))
+            results.append((img_tensor, targets, img_path))
+
         self.total_samples += 1
-        targets = torch.cat([labels.unsqueeze(1), boxes], dim=1) if boxes.numel() else torch.zeros((0, 5))
-        return img_tensor, targets,self.img_paths[idx]
-
+        return results  # lista di tuple per ogni trasformazione
 
     def report_stats(self):
         print("\n=== Report Dataset ===")
@@ -99,14 +109,25 @@ class Custom_Dataloader(Dataset):
         print(f"Totale immagini realmente utilizzate per il training: {valid_samples}")
         print("======================\n")
 
+    def reset(self):
+        """Metodo fittizio per compatibilità con Ultralytics."""
+        print("📌 Custom_Dataloader.reset() called")
+        self.skipped_augmentation = 0
+        self.empty_targets = 0
+        self.total_samples = 0
+    
+    
 
+
+# === Nuova collate_fn ===
 def collate_fn(batch):
-    imgs, targets,paths  = zip(*batch)
-    imgs = torch.stack(imgs)
+    # Appiattisce tutte le trasformazioni generate per ogni immagine in un'unica lista
+    flat_batch = [item for sublist in batch for item in sublist]  # flattens list of lists
+    imgs, targets, paths = zip(*flat_batch)
 
+    imgs = torch.stack(imgs)
     if any(t.numel() > 0 for t in targets):
-        batch_idx = []
-        cls, bboxes = [], []
+        batch_idx, cls, bboxes = [], [], []
         for i, t in enumerate(targets):
             batch_idx.append(torch.full((t.shape[0],), i))
             cls.append(t[:, 0])
@@ -118,7 +139,6 @@ def collate_fn(batch):
         batch_idx = torch.zeros((0,), dtype=torch.long)
         cls = torch.zeros((0,), dtype=torch.long)
         bboxes = torch.zeros((0, 4), dtype=torch.float32)
-
 
     return {
         "img": imgs,

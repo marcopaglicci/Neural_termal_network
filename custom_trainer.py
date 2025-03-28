@@ -6,7 +6,7 @@ import torch
 
 from ultralytics.models.yolo.detect.train import DetectionTrainer
 from torch.utils.data import DataLoader
-from Custom_Dataloader import Custom_Dataloader, collate_fn  
+from MultiTrasform_Dataloader import  collate_fn  
 
 import logging
 
@@ -47,15 +47,15 @@ class CustomTrainer(DetectionTrainer):
                     shuffle=True,
                     num_workers=self.args.workers,
                     collate_fn=collate_fn,
+                    pin_memory=True
                 )
                 logger.info(f"Successfully created dataloader with {len(dataloader)} batches")
+                dataloader.reset = self.custom_train_dataset.reset
                 return dataloader
             except Exception as e:
                 logger.error(f"Error creating dataloader: {e}")
                 raise
 
-    def train(self):
-        logger.info("Training started")
-        return super().train()
+
 
 
