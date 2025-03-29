@@ -1,3 +1,5 @@
+# 📦 Importazioni standard e librerie per data augmentation e gestione immagini
+
 import os
 import glob
 import cv2
@@ -8,6 +10,11 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 # === Definizione di più set di trasformazioni ===
+
+# 🎨 Definizione di tre pipeline di trasformazione differenti (Albumentations)
+# Ogni pipeline applica una combinazione diversa di augmentation per aumentare la varietà dei dati
+# Utilizzano Resize a 640x640 e il formato YOLO per i bounding box
+
 transform_set1 = A.Compose([
     A.RandomBrightnessContrast(p=0.3),
     A.OneOf([
@@ -20,8 +27,8 @@ transform_set1 = A.Compose([
 ], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
 
 transform_set2 = A.Compose([
-    A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.1, rotate_limit=10, p=0.7),
-    A.Perspective(p=0.7),
+    A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.1, rotate_limit=10, p=0.3),
+    A.Perspective(p=0.2),
     A.Resize(640, 640),
     ToTensorV2(),
 ], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
@@ -33,31 +40,48 @@ transform_set3 = A.Compose([
     ToTensorV2(),
 ], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
 
+
+# 🔁 Elenco delle trasformazioni da applicare
+
 transforms_list = [transform_set1, transform_set2, transform_set3]
 
 
-# === Custom Dataloader aggiornato ===
+# 🧱 Definizione del Custom Dataloader multi-trasformazione
+# Questo DataLoader applica ogni trasformazione presente in `transforms_list` a ogni immagine.
+# L'output di __getitem__ è una lista di tuple: una per ogni versione augmentata.
+
 class Custom_Dataloader(Dataset):
     def __init__(self, img_dir, label_dir, transforms_list):
+
+         # 🔍 Raccoglie tutti i file immagine con estensioni valide
         self.img_paths = []
         for ext in ('*.jpg', '*.jpeg', '*.png'):
             self.img_paths.extend(sorted(glob.glob(os.path.join(img_dir, ext))))
+
+         # 📄 Raccoglie i file etichetta YOLO-style (.txt)
         self.label_paths = sorted(glob.glob(os.path.join(label_dir, "*.txt")))
         self.transforms_list = transforms_list
+
+        # 📊 Statistiche per il debug/report
         self.skipped_augmentation = 0
         self.empty_targets = 0
         self.total_samples = 0
 
+    # Restituisce il numero totale di immagini nel dataset
     def __len__(self):
         return len(self.img_paths)
 
     def __getitem__(self, idx):
+
+        # 🔄 Metodo principale per caricare e trasformare un'immagine
         img_path = self.img_paths[idx]
         label_path = self.label_paths[idx]
 
+        # Carica immagine e converte in RGB
         img = cv2.imread(img_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
+         # 📌 Parsing delle etichette YOLO (classe, x, y, w, h)
         bboxes, class_labels = [], []
         if os.path.isfile(label_path):
             with open(label_path, 'r') as f:
@@ -67,38 +91,47 @@ class Custom_Dataloader(Dataset):
                     class_labels.append(int(cls))
 
         results = []
+
+         # 🔁 Per ogni trasformazione definita, applica l'augmentation e valida i bounding box
         for transform in self.transforms_list:
             try:
                 transformed = transform(image=img, bboxes=bboxes, class_labels=class_labels)
+
+                # ✅ Validazione post-transform: solo box con coordinate valide (in [0,1])
                 valid_bboxes, valid_labels = [], []
                 for box, label in zip(transformed["bboxes"], transformed["class_labels"]):
                     if len(box) == 4 and all(0.0 <= v <= 1.0 for v in box):
                         valid_bboxes.append(box)
                         valid_labels.append(label)
             except Exception:
+                 # ❌ Se Albumentations lancia errore, logga e restituisce immagine vuota
                 self.skipped_augmentation += 1
                 img_tensor = torch.zeros((3, 640, 640))
                 targets = torch.zeros((0, 5))
                 results.append((img_tensor, targets, img_path))
                 continue
-
+            
+            # 🔢 Conversione in tensor
             img_tensor = transformed["image"]
             boxes = torch.tensor(valid_bboxes, dtype=torch.float32)
             labels = torch.tensor(valid_labels, dtype=torch.long)
 
+             # 🎯 Filtro di box troppo piccoli o non validi
             if boxes.numel():
                 valid = (boxes[:, 2] > 0.01) & (boxes[:, 3] > 0.01)
                 boxes = boxes[valid]
                 labels = labels[valid]
 
+             # 📈 Conta i target vuoti
             if boxes.numel() == 0:
                 self.empty_targets += 1
 
+             # 📦 Organizza target come tensor [cls, x, y, w, h]
             targets = torch.cat([labels.unsqueeze(1), boxes], dim=1) if boxes.numel() else torch.zeros((0, 5))
             results.append((img_tensor, targets, img_path))
 
         self.total_samples += 1
-        return results  # lista di tuple per ogni trasformazione
+        return results  # lista di tuple (img_tensor, targets, path) per ogni trasformazione
 
     def report_stats(self):
         print("\n=== Report Dataset ===")
@@ -110,7 +143,7 @@ class Custom_Dataloader(Dataset):
         print("======================\n")
 
     def reset(self):
-        """Metodo fittizio per compatibilità con Ultralytics."""
+        """📌 Metodo richiesto da Ultralytics per compatibilità (resetta le metriche interne)."""
         print("📌 Custom_Dataloader.reset() called")
         self.skipped_augmentation = 0
         self.empty_targets = 0
@@ -119,13 +152,21 @@ class Custom_Dataloader(Dataset):
     
 
 
-# === Nuova collate_fn ===
+# ===collate_fn ===
+
+# 🧩 Funzione collate personalizzata
+# Viene usata per appiattire la lista di immagini trasformate multiple in un unico batch PyTorch.
+# La funzione collate_fn è fondamentale per combinare i dati in batch durante il training.
+
 def collate_fn(batch):
-    # Appiattisce tutte le trasformazioni generate per ogni immagine in un'unica lista
+
+    # 🔄 Appiattisce tutti i risultati delle trasformazioni in un'unica lista
     flat_batch = [item for sublist in batch for item in sublist]  # flattens list of lists
     imgs, targets, paths = zip(*flat_batch)
 
     imgs = torch.stack(imgs)
+
+     # 📦 Prepara tensori batch_idx, cls e bbox per l'interfaccia YOLO
     if any(t.numel() > 0 for t in targets):
         batch_idx, cls, bboxes = [], [], []
         for i, t in enumerate(targets):
@@ -136,6 +177,7 @@ def collate_fn(batch):
         cls = torch.cat(cls)
         bboxes = torch.cat(bboxes)
     else:
+        # ⛔ Nessun target valido
         batch_idx = torch.zeros((0,), dtype=torch.long)
         cls = torch.zeros((0,), dtype=torch.long)
         bboxes = torch.zeros((0, 4), dtype=torch.float32)
