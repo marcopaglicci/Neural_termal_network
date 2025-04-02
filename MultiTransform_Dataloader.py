@@ -2,6 +2,7 @@
 
 import os
 import glob
+import random
 import cv2
 import torch
 import numpy as np
@@ -158,6 +159,8 @@ class Custom_Dataloader(Dataset):
          # 🔁 Per ogni trasformazione definita, applica l'augmentation e valida i bounding box
         for transform in self.transforms_list:
             try:
+                transform = random.choice(self.transforms_list)  # Scegli una trasformazione casuale
+                # 🔄 Applica la trasformazione
                 transformed = transform(image=img, bboxes=bboxes, class_labels=class_labels)
 
                 # ✅ Validazione post-transform: solo box con coordinate valide (in [0,1])

@@ -1,0 +1,6 @@
+# test_dataset.yaml
+path: /home/ubuntu/test_dataset
+train: train/images
+val: val/images
+nc: 5  
+names: [empty, person, bicycle, car, dog]
