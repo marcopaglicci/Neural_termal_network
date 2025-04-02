@@ -5,12 +5,10 @@
 from functools import partial
 from ultralytics import YOLO
 from ultralytics.models.yolo.detect.train import DetectionTrainer
-from data_loader import YOLODataset , train_transforms
 #from  Custom_Dataloader import Custom_Dataloader, custom_transforms
 from custom_trainer import CustomTrainer
 from MultiTransform_Dataloader import Custom_Dataloader, transforms_list
 import os
-import wandb
 import glob
 
 
@@ -62,20 +60,19 @@ results = model.train(
     
 
     # 💡 Ottimizzazione
-    optimizer="AdamW",           # Ottimizzatore robusto
+    optimizer="SGD",           # Ottimizzatore robusto
     lr0=0.005,                   # Learning rate iniziale
-    lrf=0.001,                   # LR minimo al termine (cosine decay)
-    cos_lr=True,                 # Cosine learning rate decay
+    lrf=0.001,                   # LR minimo al termine (cosine decay)               
     momentum=0.937,
     weight_decay=0.002,
 
     # 🔥 Warmup settings
-    warmup_epochs=10.0,
+    warmup_epochs=3.0,
     warmup_momentum=0.8,
     warmup_bias_lr=0.1,
 
     # 🧠 Generalizzazione e stabilità
-    #dropout=0.2,                 # Attivazione dropout
+    dropout=0.2,                 # Attivazione dropout
                     
 )
 

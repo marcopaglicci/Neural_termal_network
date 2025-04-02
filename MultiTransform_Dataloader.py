@@ -28,22 +28,65 @@ transform_set1 = A.Compose([
 
 transform_set2 = A.Compose([
     A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.1, rotate_limit=10, p=0.3),
-    A.Perspective(p=0.2),
+    A.Perspective(p=0.3),
+    A.HorizontalFlip(p=0.3),
     A.Resize(640, 640),
     ToTensorV2(),
 ], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
 
 transform_set3 = A.Compose([
-    A.GaussNoise(var_limit=(5, 15), p=0.3),
-    A.HorizontalFlip(p=0.3),
+    A.Resize(640, 640),
+    ToTensorV2(),
+], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
+
+transform_set4 = A.Compose([
+    A.Perspective(p=1),
+    A.Resize(640, 640),
+    ToTensorV2(),
+], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
+
+transform_set5 = A.Compose([
+    A.Affine(
+    translate_percent={"x": 0.05, "y": 0.05},  # traslazione max ±5%
+    scale=(0.9, 1.1),                          # scala 0.9x–1.1x
+    rotate=(-10, 10),                          # rotazione ±10°
+    shear={"x": (-5, 5), "y": (-5, 5)},        # opzionale
+    p=1.0
+    ),
+    A.Resize(640, 640),
+    ToTensorV2(),
+], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
+
+
+transform_set7 = A.Compose([
+    A.OpticalDistortion(
+    distort_limit=(-0.05,0.05),
+    interpolation=1,
+    mask_interpolation=0,
+    mode = 'camera',
+    p=0.3
+    ),
+    A.Resize(640, 640),
+    ToTensorV2(),
+], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
+
+transform_set8 = A.Compose([
+    A.RandomCrop(height=512, width=512, p=1.0),
     A.Resize(640, 640),
     ToTensorV2(),
 ], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
 
 
 # 🔁 Elenco delle trasformazioni da applicare
-
-transforms_list = [transform_set1, transform_set2, transform_set3]
+transforms_list = [
+    transform_set1,
+    transform_set2,
+    transform_set3,
+    transform_set4,
+    transform_set5,
+    transform_set7,
+    transform_set8
+]
 
 
 # 🧱 Definizione del Custom Dataloader multi-trasformazione
@@ -70,6 +113,26 @@ class Custom_Dataloader(Dataset):
     # Restituisce il numero totale di immagini nel dataset
     def __len__(self):
         return len(self.img_paths)
+    
+    # 🔍 CONTROLLO IMMAGINE NERA POST-TRANSFORMAZIONE
+    def is_black_image(image: torch.Tensor, std_thresh=2.0, max_thresh=20) -> bool:
+        """
+        Considera l'immagine nera se la varianza è bassa e il valore massimo è sotto soglia.
+        Questo approccio evita falsi positivi su immagini FLIR scure ma con contenuto utile.
+        """
+        img_np = image.detach().cpu().numpy()
+
+        if img_np.shape[0] == 3:
+            gray = 0.2989 * img_np[0] + 0.5870 * img_np[1] + 0.1140 * img_np[2]
+        else:
+            gray = img_np[0]  # Se già grayscale
+
+        std_val = gray.std()
+        max_val = gray.max()
+
+        # Debug (solo per test temporaneo)
+        print(f"[DEBUG] std={std_val:.2f} | max={max_val:.2f}")
+        return std_val < std_thresh and max_val < max_thresh
 
     def __getitem__(self, idx):
 

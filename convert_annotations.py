@@ -28,8 +28,8 @@ def convert_bbox(size, box):
 """prelevo il path del dataset di immagini dalla cartella train"""
 
 conversion_directory = "val"
-json_directory = 'C:/Users/Marco/Desktop/Nuova cartella/dataset/val/'
-train_dir = 'C:/Users/Marco/Desktop/dataset/'+ conversion_directory
+json_directory = 'C:/Users/Marco/Desktop/test_dataset/val/'
+train_dir = 'C:/Users/Marco/Desktop/test_dataset/'+ conversion_directory
 image_folder  = os.path.join(train_dir, 'images')
 json_path = os.path.join(json_directory, 'thermal_annotations.json')
 output_folder = os.path.join(train_dir, 'labels')
