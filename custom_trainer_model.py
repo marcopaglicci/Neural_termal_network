@@ -41,7 +41,6 @@ folder = "testing"
 
 TrainerWithDataset = partial(CustomTrainer, custom_train_dataset=train_dataset)
 
-wandb.init(project="YOLO_PROJECT", name=test_name, resume="allow")
  
 # 🚀 Avvio del training del modello YOLOv9s
 # Il modello viene caricato e addestrato utilizzando un trainer personalizzato che sfrutta
@@ -57,7 +56,7 @@ results = model.train(
     project = folder,
     trainer=TrainerWithDataset,  # Trainer custom con dataloader personalizzato
     plots = True,
-    
+    batch=32,                # Dimensione batch
 
     # 💡 Ottimizzazione
     optimizer="SGD",           # Ottimizzatore robusto
@@ -72,7 +71,7 @@ results = model.train(
     warmup_bias_lr=0.1,
 
     # 🧠 Generalizzazione e stabilità
-    dropout=0.2,                 # Attivazione dropout
+    dropout=0.1,                 # Attivazione dropout
                     
 )
 
