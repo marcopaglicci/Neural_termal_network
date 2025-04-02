@@ -19,6 +19,7 @@ metrics = model.val(
     name=validation_name,
     project = folder,
     plot = True,  # Salva i grafici delle metriche
+    save=True
 )
 
 print(f"▶️Test completato. Risultati salvati in {folder}/{validation_name}.")

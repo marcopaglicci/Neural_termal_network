@@ -36,57 +36,37 @@ transform_set2 = A.Compose([
 ], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
 
 transform_set3 = A.Compose([
+    A.SomeOf([
+        A.GaussianBlur(blur_limit=(3, 5), p=1),
+        A.MotionBlur(blur_limit=5, p=1),
+        A.GaussNoise(var_limit=(10.0, 50.0), p=1),
+        A.OpticalDistortion(
+            distort_limit=(-0.05,0.05),
+            interpolation=1,
+            mask_interpolation=0,
+            mode = 'camera',
+            p=0.3
+        ),
+        A.Affine(
+            translate_percent={"x": 0.05, "y": 0.05},  # traslazione max ±5%
+            scale=(0.9, 1.1),                          # scala 0.9x–1.1x
+            rotate=(-10, 10),                          # rotazione ±10°
+            shear={"x": (-5, 5), "y": (-5, 5)},        # opzionale
+            p=1.0
+        ),
+        A.Perspective(p=1),
+        A.RandomCrop(height=512, width=512, p=1.0),
+        A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.1, rotate_limit=10, p=0.3),
+    ], n=2, replace=False, p=0.8),  # Applica 2 trasformazioni casuali su 5
     A.Resize(640, 640),
     ToTensorV2(),
 ], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
-
-transform_set4 = A.Compose([
-    A.Perspective(p=1),
-    A.Resize(640, 640),
-    ToTensorV2(),
-], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
-
-transform_set5 = A.Compose([
-    A.Affine(
-    translate_percent={"x": 0.05, "y": 0.05},  # traslazione max ±5%
-    scale=(0.9, 1.1),                          # scala 0.9x–1.1x
-    rotate=(-10, 10),                          # rotazione ±10°
-    shear={"x": (-5, 5), "y": (-5, 5)},        # opzionale
-    p=1.0
-    ),
-    A.Resize(640, 640),
-    ToTensorV2(),
-], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
-
-
-transform_set7 = A.Compose([
-    A.OpticalDistortion(
-    distort_limit=(-0.05,0.05),
-    interpolation=1,
-    mask_interpolation=0,
-    mode = 'camera',
-    p=0.3
-    ),
-    A.Resize(640, 640),
-    ToTensorV2(),
-], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
-
-transform_set8 = A.Compose([
-    A.RandomCrop(height=512, width=512, p=1.0),
-    A.Resize(640, 640),
-    ToTensorV2(),
-], bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.0))
-
 
 # 🔁 Elenco delle trasformazioni da applicare
 transforms_list = [
     transform_set1,
     transform_set2,
     transform_set3,
-    transform_set4,
-    transform_set5,
-    transform_set7,
-    transform_set8
 ]
 
 
@@ -95,7 +75,7 @@ transforms_list = [
 # L'output di __getitem__ è una lista di tuple: una per ogni versione augmentata.
 
 class Custom_Dataloader(Dataset):
-    def __init__(self, img_dir, label_dir, transforms_list):
+    def __init__(self, img_dir, label_dir, transforms_list,num_transforms):
 
          # 🔍 Raccoglie tutti i file immagine con estensioni valide
         self.img_paths = []
@@ -110,6 +90,7 @@ class Custom_Dataloader(Dataset):
         self.skipped_augmentation = 0
         self.empty_targets = 0
         self.total_samples = 0
+        self.num_transforms = num_transforms
 
     # Restituisce il numero totale di immagini nel dataset
     def __len__(self):
@@ -157,7 +138,7 @@ class Custom_Dataloader(Dataset):
         results = []
 
          # 🔁 Per ogni trasformazione definita, applica l'augmentation e valida i bounding box
-        for transform in self.transforms_list:
+        for i in range(self.num_transforms):
             try:
                 transform = random.choice(self.transforms_list)  # Scegli una trasformazione casuale
                 # 🔄 Applica la trasformazione

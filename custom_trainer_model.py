@@ -28,7 +28,9 @@ for ext in ('*.jpg', '*.jpeg', '*.png'):
 # Viene istanziato un Custom_Dataloader, capace di applicare trasformazioni multiple per ogni immagine.
 # Questo approccio arricchisce il dataset con versioni augmentate, potenziando la generalizzazione del modello.
 
-train_dataset = Custom_Dataloader(img_dir, label_dir, transforms_list=transforms_list)
+num_transforms = 4      #trasformazioni per immagine
+
+train_dataset = Custom_Dataloader(img_dir, label_dir, transforms_list=transforms_list,num_transforms=num_transforms)
 
 print(f"Found {len(train_dataset)} images for training")
 print(f"Example image path: {train_dataset.img_paths[0] if len(train_dataset) > 0 else 'None'}")
@@ -56,7 +58,7 @@ results = model.train(
     project = folder,
     trainer=TrainerWithDataset,  # Trainer custom con dataloader personalizzato
     plots = True,
-    batch=32,                # Dimensione batch
+    batch=16,                # Dimensione batch
 
     # 💡 Ottimizzazione
     optimizer="SGD",           # Ottimizzatore robusto
