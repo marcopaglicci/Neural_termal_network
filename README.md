@@ -1,4 +1,4 @@
-# Fine-Tuning YOLO for Thermal Object Detection 🔥📦
+# Fine-Tuning YOLO for Thermal Object Detection 
 
 **Autore:** Marco Paglicci  
 **Università:** Università degli Studi di Firenze - Ingegneria Informatica  
