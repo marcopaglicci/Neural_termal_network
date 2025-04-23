@@ -31,25 +31,14 @@ L'obiettivo è stato adattare un modello pre-addestrato YOLO per il dominio term
 
 ---
 
-## 📁 Struttura del repository
-
-bash
-├── train_model.py               # Script base di training (YOLOv8)
-├── custom_trainer_model.py     # Training con YOLOv9s, CustomTrainer e data_loader
-├── custom_trainer.py           # Estensione di DetectionTrainer con dataset personalizzato
-├── data_loader.py              # Caricamento immagini, trasformazioni e gestione bounding box
-├── dataset.yaml                # Configurazione dataset per YOLO (classi, path)
-├── results/                    # Output di training e validazione (salvati in runs/)
-└── Tesi_Paglicci_Marco.pdf     # Tesi accademica completa
-
 
 ## ⚙️ Requisiti
 
--Python >= 3.9
--CUDA compatibile (GPU Nvidia)
--torch >= 2.0
--ultralytics >= 8.3.95
--albumentations >= 1.3.1
+- Python >= 3.9
+- CUDA compatibile (GPU Nvidia)
+- torch >= 2.0
+- ultralytics >= 8.3.95
+- albumentations >= 1.3.1
 
 ## 🚀 Come eseguire il training
 Prepara il dataset:
